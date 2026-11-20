@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="et">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f7fb">
+  <title>Koosoleku tõlkeabi</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17263b;
+      --muted: #617087;
+      --line: #dce4ee;
+      --paper: #ffffff;
+      --canvas: #f4f7fb;
+      --blue: #2458d3;
+      --blue-dark: #1946b2;
+      --blue-soft: #edf3ff;
+      --green: #16825d;
+      --red: #c04444;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; background: var(--canvas); color: var(--ink); }
+    button, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .shell { width: min(1080px, calc(100% - 40px)); margin: 0 auto; padding: 42px 0 32px; }
+    header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 26px; }
+    .brand { display: flex; gap: 15px; align-items: flex-start; }
+    .mark { width: 48px; height: 48px; flex: none; display: grid; place-items: center; border-radius: 15px; color: #fff; background: var(--blue); box-shadow: 0 8px 20px #2458d328; }
+    .mark svg { width: 26px; height: 26px; }
+    h1 { margin: 0; font-size: clamp(25px, 4vw, 34px); letter-spacing: -.035em; line-height: 1.13; }
+    .subtitle { margin: 8px 0 0; color: var(--muted); font-size: 16px; line-height: 1.45; }
+    .status { display: flex; align-items: center; gap: 9px; padding: 9px 13px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); color: var(--muted); font-size: 14px; white-space: nowrap; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #9aa8b9; }
+    .status[data-state="ready"] .dot { background: var(--green); }
+    .status[data-state="listening"] .dot { background: #d14d4d; box-shadow: 0 0 0 4px #d14d4d20; animation: pulse 1.3s infinite; }
+    .status[data-state="working"] .dot { background: #d08a19; }
+    @keyframes pulse { 50% { box-shadow: 0 0 0 8px #d14d4d0c; } }
+    .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); box-shadow: 0 8px 30px #1c31520a; }
+    .direction { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 260px; }
+    select { appearance: none; width: 100%; min-height: 44px; padding: 0 38px 0 13px; border: 1px solid var(--line); border-radius: 11px; color: var(--ink); background: #fff; font-weight: 600; cursor: pointer; background-image: linear-gradient(45deg, transparent 50%, #68778c 50%), linear-gradient(135deg, #68778c 50%, transparent 50%); background-position: calc(100% - 17px) 19px, calc(100% - 12px) 19px; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
+    .swap { width: 42px; height: 42px; flex: none; border: 1px solid var(--line); border-radius: 11px; color: var(--blue); background: #fff; font-size: 20px; }
+    .swap:hover, .secondary:hover { background: var(--blue-soft); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 44px; padding: 0 17px; border: 0; border-radius: 11px; font-weight: 700; transition: .15s ease; }
+    .btn svg { width: 18px; height: 18px; }
+    .primary { color: #fff; background: var(--blue); box-shadow: 0 5px 14px #2458d326; }
+    .primary:hover { background: var(--blue-dark); }
+    .primary.recording { background: #c04444; box-shadow: 0 5px 14px #c0444425; }
+    .secondary { color: var(--blue); background: var(--blue-soft); }
+    .plain { color: var(--muted); background: transparent; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+    .pane { min-height: 295px; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); box-shadow: 0 8px 30px #1c31520a; }
+    .pane-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid #edf1f6; }
+    .pane-head h2 { margin: 0; font-size: 16px; }
+    .language-tag { padding: 5px 9px; border-radius: 999px; background: #f0f3f7; color: var(--muted); font-size: 13px; font-weight: 700; }
+    .pane-content { padding: 17px 18px 18px; }
+    textarea { display: block; width: 100%; min-height: 134px; resize: vertical; padding: 0; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 17px; line-height: 1.6; }
+    textarea::placeholder { color: #97a4b5; }
+    .interim { min-height: 25px; color: #8593a5; font-size: 15px; line-height: 1.5; font-style: italic; }
+    .pane-actions { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-top: 11px; }
+    .small { min-height: 36px; padding: 0 12px; font-size: 14px; }
+    .live-row { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
+    .translated { min-height: 160px; color: var(--ink); font-size: 18px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .translated.empty { color: #97a4b5; }
+    .hint { margin: 16px 2px 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .privacy { display: flex; gap: 10px; align-items: flex-start; margin-top: 18px; padding: 14px 16px; border: 1px solid #e7d9b2; border-radius: 13px; background: #fff9e9; color: #6c5930; font-size: 13px; line-height: 1.5; }
+    .privacy svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translate(-50%, 12px); opacity: 0; pointer-events: none; padding: 11px 16px; border-radius: 11px; color: white; background: #17263b; box-shadow: 0 6px 25px #17263b35; transition: .2s; font-size: 14px; z-index: 5; }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    @media (max-width: 700px) {
+      .shell { width: min(100% - 24px, 540px); padding-top: 24px; }
+      header { flex-direction: column; gap: 14px; }
+      .toolbar { padding: 12px; }
+      .direction { min-width: 100%; order: 1; }
+      .toolbar .primary { flex: 1; }
+      .panes { grid-template-columns: 1fr; }
+      .pane { min-height: 250px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="brand">
+        <div class="mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v7a2.5 2.5 0 0 1-2.5 2.5H12l-4.5 4v-4h-1A2.5 2.5 0 0 1 4 12.5z"/><path d="M8 8h8M8 11h5"/></svg>
+        </div>
+        <div>
+          <h1>Koosoleku tõlkeabi</h1>
+          <p class="subtitle">Kuula, loe ja tõlgi eesti ning inglise keele vahel.</p>
+        </div>
+      </div>
+      <div id="status" class="status" data-state="ready" role="status" aria-live="polite"><span class="dot"></span><span id="statusText">Valmis</span></div>
+    </header>
+
+    <section class="toolbar" aria-label="Tõlke seaded">
+      <div class="direction">
+        <select id="direction" aria-label="Tõlke suund">
+          <option value="en-et">Inglise keel → eesti keel</option>
+          <option value="et-en">Eesti keel → inglise keel</option>
+        </select>
+        <button id="swap" class="swap" type="button" title="Vaheta keelesuund" aria-label="Vaheta keelesuund">⇄</button>
+      </div>
+      <button id="listen" class="btn primary" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 10.5v1a6.5 6.5 0 0 0 13 0v-1M12 18v3.5M8.5 21.5h7"/></svg>
+        <span>Alusta kuulamist</span>
+      </button>
+      <button id="clear" class="btn plain" type="button">Tühjenda</button>
+    </section>
+
+    <section class="panes" aria-label="Kõnetuvastus ja tõlge">
+      <article class="pane">
+        <div class="pane-head"><h2>Sisend</h2><span id="sourceTag" class="language-tag">English</span></div>
+        <div class="pane-content">
+          <textarea id="sourceText" placeholder="Vajuta mikrofoni nuppu või kirjuta siia tekst…" aria-label="Lähtekeelne tekst"></textarea>
+          <div id="interim" class="interim" aria-live="polite"></div>
+          <div class="pane-actions">
+            <div class="live-row"><span id="micHint">Mikrofon on välja lülitatud</span></div>
+            <button id="translate" class="btn secondary small" type="button">Tõlgi tekst</button>
+          </div>
+        </div>
+      </article>
+      <article class="pane">
+        <div class="pane-head"><h2>Tõlge</h2><span id="targetTag" class="language-tag">Eesti</span></div>
+        <div class="pane-content">
+          <div id="translatedText" class="translated empty" aria-live="polite">Tõlge ilmub siia.</div>
+          <div class="pane-actions">
+            <div class="live-row">Kõne tekst tõlgitakse lauseosade kaupa</div>
+            <div style="display:flex;gap:6px">
+              <button id="speak" class="btn secondary small" type="button" title="Loe tõlge ette">Loe ette</button>
+              <button id="copy" class="btn plain small" type="button">Kopeeri</button>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <p class="hint">Kõne tuvastatakse jooksvalt; tõlge lisandub iga tuvastatud lauseosa järel. Kui koosolekul kõneleja vahetub, vali ülevalt teine tõlkesuund.</p>
+    <aside class="privacy" role="note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 20 6v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12h6M12 9v6"/></svg>
+      <span>Vajab internetti ja toetatud brauserit (Chrome või Edge). Kõnetuvastus võib kasutada brauseri kõneteenust ning teksti tõlkimiseks saadetakse see MyMemory tõlketeenusele. Ära kasuta konfidentsiaalse koosoleku jaoks. Veebirakendus ei salvesta teksti serverisse.</span>
+    </aside>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const direction = $('direction');
+      const source = $('sourceText');
+      const translated = $('translatedText');
+      const interim = $('interim');
+      const listenButton = $('listen');
+      const status = $('status');
+      const statusText = $('statusText');
+      const micHint = $('micHint');
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      let recognition = null;
+      let listening = false;
+      let busy = false;
+      let translationQueue = Promise.resolve();
+      let toastTimer;
+
+      const langs = () => direction.value === 'en-et'
+        ? { from: 'en', to: 'et', speech: 'en-US', sourceName: 'English', targetName: 'Eesti' }
+        : { from: 'et', to: 'en', speech: 'et-EE', sourceName: 'Eesti', targetName: 'English' };
+
+      function setStatus(label, state = 'ready') {
+        statusText.textContent = label;
+        status.dataset.state = state;
+      }
+
+      function updateDirection() {
+        const l = langs();
+        $('sourceTag').textContent = l.sourceName;
+        $('targetTag').textContent = l.targetName;
+        if (recognition && listening) {
+          stopListening();
+          startListening();
+        }
+      }
+
+      function showToast(message) {
+        const toast = $('toast');
+        toast.textContent = message;
+        toast.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('show'), 2800);
+      }
+
+      function setTranslated(text, append = false) {
+        const current = translated.classList.contains('empty') ? '' : translated.textContent;
+        const next = append && current ? current + '\n' + text : (append ? text : text);
+        translated.textContent = next || 'Tõlge ilmub siia.';
+        translated.classList.toggle('empty', !next);
+      }
+
+      async function translateText(text, append = false) {
+        const clean = text.trim();
+        if (!clean) return;
+        const l = langs();
+        busy = true;
+        setStatus('Tõlgin…', 'working');
+        $('translate').disabled = true;
+        try {
+          const pieces = splitByUtf8Bytes(clean, 430);
+          const results = [];
+          for (const piece of pieces) {
+            const params = new URLSearchParams({ q: piece, langpair: `${l.from}|${l.to}` });
+            const response = await fetch(`https://api.mymemory.translated.net/get?${params.toString()}`);
+            if (!response.ok) throw new Error(`Teenuse vastus: ${response.status}`);
+            const data = await response.json();
+            if (data.responseStatus !== 200 || !data.responseData?.translatedText) {
+              throw new Error(data.responseDetails || 'Tõlketeenus ei andnud vastust.');
+            }
+            results.push(data.responseData.translatedText);
+          }
+          setTranslated(results.join(' '), append);
+          setStatus(listening ? 'Kuulan' : 'Valmis', listening ? 'listening' : 'ready');
+        } catch (error) {
+          setStatus('Tõlge ebaõnnestus', 'ready');
+          showToast(error.message || 'Tõlkimine ebaõnnestus. Proovi uuesti.');
+        } finally {
+          busy = false;
+          $('translate').disabled = false;
+        }
+      }
+
+      function enqueueTranslation(text, append = false) {
+        translationQueue = translationQueue.then(() => translateText(text, append));
+        return translationQueue;
+      }
+
+      function splitByUtf8Bytes(text, maxBytes) {
+        const words = text.split(/\s+/);
+        const pieces = [];
+        let current = '';
+        for (const word of words) {
+          const candidate = current ? `${current} ${word}` : word;
+          if (new TextEncoder().encode(candidate).length > maxBytes && current) {
+            pieces.push(current);
+            current = word;
+          } else current = candidate;
+        }
+        if (current) pieces.push(current);
+        return pieces;
+      }
+
+      function makeRecognition() {
+        if (!SpeechRecognition) return null;
+        const instance = new SpeechRecognition();
+        instance.lang = langs().speech;
+        instance.continuous = true;
+        instance.interimResults = true;
+        instance.onstart = () => {
+          listening = true;
+          listenButton.classList.add('recording');
+          listenButton.querySelector('span').textContent = 'Lõpeta kuulamine';
+          micHint.textContent = `Kuulan: ${langs().sourceName}`;
+          setStatus('Kuulan', 'listening');
+        };
+        instance.onresult = (event) => {
+          let interimText = '';
+          const finals = [];
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const piece = event.results[i][0].transcript.trim();
+            if (event.results[i].isFinal && piece) finals.push(piece);
+            else interimText += piece + ' ';
+          }
+          interim.textContent = interimText ? `Kuulen: ${interimText.trim()}` : '';
+          for (const finalText of finals) {
+            source.value += (source.value.trim() ? ' ' : '') + finalText;
+            enqueueTranslation(finalText, true);
+          }
+        };
+        instance.onerror = (event) => {
+          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            showToast('Luba brauseris mikrofonile ligipääs.');
+            stopListening();
+          } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+            showToast(`Kõnetuvastuse viga: ${event.error}`);
+          }
+        };
+        instance.onend = () => {
+          if (listening) {
+            try { instance.start(); } catch (_) { /* Browser may already be restarting. */ }
+          } else {
+            setStatus('Valmis', 'ready');
+          }
+        };
+        return instance;
+      }
+
+      function startListening() {
+        if (!SpeechRecognition) {
+          showToast('Selles brauseris pole kõnetuvastus saadaval. Kasuta Chrome’i või Edge’i.');
+          return;
+        }
+        if (!recognition) recognition = makeRecognition();
+        recognition.lang = langs().speech;
+        try { recognition.start(); }
+        catch (_) { showToast('Mikrofon juba kuulab.'); }
+      }
+
+      function stopListening() {
+        listening = false;
+        interim.textContent = '';
+        listenButton.classList.remove('recording');
+        listenButton.querySelector('span').textContent = 'Alusta kuulamist';
+        micHint.textContent = 'Mikrofon on välja lülitatud';
+        if (recognition) {
+          try { recognition.stop(); } catch (_) { /* Already stopped. */ }
+        }
+        if (!busy) setStatus('Valmis', 'ready');
+      }
+
+      direction.addEventListener('change', updateDirection);
+      $('swap').addEventListener('click', () => {
+        direction.value = direction.value === 'en-et' ? 'et-en' : 'en-et';
+        updateDirection();
+      });
+      listenButton.addEventListener('click', () => listening ? stopListening() : startListening());
+      $('translate').addEventListener('click', () => enqueueTranslation(source.value));
+      $('clear').addEventListener('click', () => {
+        stopListening();
+        source.value = '';
+        interim.textContent = '';
+        setTranslated('');
+      });
+      $('copy').addEventListener('click', async () => {
+        if (translated.classList.contains('empty')) return showToast('Tõlget pole veel kopeerimiseks.');
+        try { await navigator.clipboard.writeText(translated.textContent); showToast('Tõlge kopeeritud.'); }
+        catch (_) { showToast('Kopeerimine ei õnnestunud.'); }
+      });
+      $('speak').addEventListener('click', () => {
+        if (translated.classList.contains('empty')) return showToast('Tõlget pole ette lugemiseks.');
+        if (!('speechSynthesis' in window)) return showToast('See brauser ei toeta kõne ettelugemist.');
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(translated.textContent);
+        utterance.lang = langs().to;
+        window.speechSynthesis.speak(utterance);
+      });
+      source.addEventListener('keydown', (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') enqueueTranslation(source.value);
+      });
+
+      if (!SpeechRecognition) {
+        listenButton.title = 'Kõnetuvastuseks kasuta Chrome’i või Edge’i';
+        micHint.textContent = 'Kõnetuvastus pole selles brauseris saadaval';
+      }
+      updateDirection();
+    })();
+  </script>
+</body>
+</html>
