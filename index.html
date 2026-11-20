@@ -49,6 +49,8 @@
     .primary.recording { background: #c04444; box-shadow: 0 5px 14px #c0444425; }
     .secondary { color: var(--blue); background: var(--blue-soft); }
     .plain { color: var(--muted); background: transparent; }
+    .toggle-option { display: inline-flex; align-items: center; gap: 9px; min-height: 42px; padding: 0 9px; color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer; }
+    .toggle-option input { width: 18px; height: 18px; accent-color: var(--blue); cursor: pointer; }
     .btn:disabled { opacity: .45; cursor: not-allowed; }
     .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
     .pane { min-height: 295px; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); box-shadow: 0 8px 30px #1c31520a; }
@@ -107,6 +109,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 10.5v1a6.5 6.5 0 0 0 13 0v-1M12 18v3.5M8.5 21.5h7"/></svg>
         <span>Alusta kuulamist</span>
       </button>
+      <label class="toggle-option"><input id="autoSpeak" type="checkbox" checked> Loe tõlge automaatselt ette</label>
       <button id="clear" class="btn plain" type="button">Tühjenda</button>
     </section>
 
@@ -127,7 +130,7 @@
         <div class="pane-content">
           <div id="translatedText" class="translated empty" aria-live="polite">Tõlge ilmub siia.</div>
           <div class="pane-actions">
-            <div class="live-row">Kõne tekst tõlgitakse lauseosade kaupa</div>
+            <div class="live-row">Tõlge loetakse valitud keeles ette</div>
             <div style="display:flex;gap:6px">
               <button id="speak" class="btn secondary small" type="button" title="Loe tõlge ette">Loe ette</button>
               <button id="copy" class="btn plain small" type="button">Kopeeri</button>
@@ -160,12 +163,14 @@
       let recognition = null;
       let listening = false;
       let busy = false;
+      let speaking = false;
+      let autoSpeak = true;
       let translationQueue = Promise.resolve();
       let toastTimer;
 
       const langs = () => direction.value === 'en-et'
-        ? { from: 'en', to: 'et', speech: 'en-US', sourceName: 'English', targetName: 'Eesti' }
-        : { from: 'et', to: 'en', speech: 'et-EE', sourceName: 'Eesti', targetName: 'English' };
+        ? { from: 'en', to: 'et', speech: 'en-US', voice: 'et-EE', sourceName: 'English', targetName: 'Eesti' }
+        : { from: 'et', to: 'en', speech: 'et-EE', voice: 'en-US', sourceName: 'Eesti', targetName: 'English' };
 
       function setStatus(label, state = 'ready') {
         statusText.textContent = label;
@@ -217,7 +222,9 @@
             }
             results.push(data.responseData.translatedText);
           }
-          setTranslated(results.join(' '), append);
+          const finalTranslation = results.join(' ');
+          setTranslated(finalTranslation, append);
+          if (append && autoSpeak) speakTranslation(finalTranslation);
           setStatus(listening ? 'Kuulan' : 'Valmis', listening ? 'listening' : 'ready');
         } catch (error) {
           setStatus('Tõlge ebaõnnestus', 'ready');
@@ -231,6 +238,31 @@
       function enqueueTranslation(text, append = false) {
         translationQueue = translationQueue.then(() => translateText(text, append));
         return translationQueue;
+      }
+
+      function speakTranslation(text) {
+        if (!('speechSynthesis' in window) || !text) return;
+        window.speechSynthesis.cancel();
+        const l = langs();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = l.voice;
+        const voices = window.speechSynthesis.getVoices();
+        const voice = voices.find(v => v.lang.toLowerCase() === l.voice.toLowerCase())
+          || voices.find(v => v.lang.toLowerCase().startsWith(l.to));
+        if (voice) utterance.voice = voice;
+        const resumeMic = () => {
+          speaking = false;
+          if (listening && recognition) {
+            try { recognition.start(); } catch (_) { /* Recognition may still be stopping. */ }
+          }
+        };
+        utterance.onend = resumeMic;
+        utterance.onerror = resumeMic;
+        if (listening && recognition) {
+          speaking = true;
+          try { recognition.stop(); } catch (_) { speaking = false; }
+        }
+        window.speechSynthesis.speak(utterance);
       }
 
       function splitByUtf8Bytes(text, maxBytes) {
@@ -284,9 +316,9 @@
           }
         };
         instance.onend = () => {
-          if (listening) {
+          if (listening && !speaking) {
             try { instance.start(); } catch (_) { /* Browser may already be restarting. */ }
-          } else {
+          } else if (!listening) {
             setStatus('Valmis', 'ready');
           }
         };
@@ -337,10 +369,11 @@
       $('speak').addEventListener('click', () => {
         if (translated.classList.contains('empty')) return showToast('Tõlget pole ette lugemiseks.');
         if (!('speechSynthesis' in window)) return showToast('See brauser ei toeta kõne ettelugemist.');
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(translated.textContent);
-        utterance.lang = langs().to;
-        window.speechSynthesis.speak(utterance);
+        speakTranslation(translated.textContent);
+      });
+      $('autoSpeak').addEventListener('change', (event) => {
+        autoSpeak = event.target.checked;
+        if (!autoSpeak) window.speechSynthesis?.cancel();
       });
       source.addEventListener('keydown', (event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') enqueueTranslation(source.value);
